@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from models.model import predict, predict_until
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from datetime import date as dt
+from datetime import date as dt, timedelta
 
 app = Flask(__name__)
 CORS(app)  # CORS sudah diaktifkan secara global
@@ -59,8 +59,11 @@ def get_articles():
     return jsonify(results)
 
 @app.route('/articles/<int:id>', methods=['GET'])
-def get_article_detail(id):
-    article = Article.query.get_or_404(id)
+def get_article(id):
+    article = Article.query.get(id)
+    if not article:
+        return jsonify({"message": "Article not found"}), 404
+    
     result = {
         "id": article.id,
         "title": article.title,
@@ -70,47 +73,101 @@ def get_article_detail(id):
     return jsonify(result)
 
 
-@app.route('/predict-until', methods=['POST'])
-def get_prediction_until():
-    data = request.json.get("day")
-    if not isinstance(data, int):
-        return jsonify({"error": "Invalid input: 'day' must be an integer"}), 400
-
-    prices = GoldPriceHistory.query.order_by(GoldPriceHistory.date.asc()).all()
+@app.route('/prices', methods=['GET'])
+def get_data():
+    prices = GoldPriceHistory.query.all()
     
-    # Konversi data SQLAlchemy ke bentuk yang bisa digunakan oleh predict_until
-    prices_list = [{"date": p.date.strftime("%Y-%m-%d"), "price_in_rp": p.price_in_rp} for p in prices]
+    # Menyusun daftar tanggal dan harga
+    dates = [price.date.strftime("%Y-%m-%d") for price in prices]  # Konversi ke string
+    price_values = [int(price.price_in_rp) for price in prices]  # Konversi ke integer
 
-    result = predict_until(n_days=data, prices=prices_list)
-    return jsonify(result)
+    # Asumsi: prediksi diambil dari 24 hari terakhir
+    prediction_values = price_values[-24:]
 
-@app.route('/predict', methods=['POST'])
-def get_prediction():
-    data = request.json.get("day")
-    if not isinstance(data, int):
-        return jsonify({"error": "Invalid input: 'day' must be an integer"}), 400
-
-    prices = GoldPriceHistory.query.order_by(GoldPriceHistory.date.asc()).all()
+    # Menentukan tanggal referensi (hari ini)
+    today = dt.today()  # Format date
     
-    # Konversi data ke bentuk JSON-friendly
-    prices_list = [{"date": p.date.strftime("%Y-%m-%d"), "price_in_rp": p.price_in_rp} for p in prices]
-
-    result = predict(data, prices=prices_list)
-    return jsonify(result)
-
-@app.route('/newprice', methods=['GET'])
-def get_newprice():
-    latest_price = GoldPriceHistory.query.order_by(GoldPriceHistory.date.desc()).first()
+    # Menentukan prediksi berdasarkan hari ke depan
+    predictionByDay = {}
+    prediction_days = [6, 12, 18, 24]  # Hari ke depan dari hari ini
+    for idx, day in enumerate(prediction_days):
+        future_date = today + timedelta(days=day)  # Menentukan tanggal ke depan
+        future_date_str = future_date.strftime("%Y-%m-%d")  # Konversi ke string
+        
+        if len(prediction_values) >= day:
+            predictionByDay[future_date_str] = prediction_values[day - 1]  # Ambil data dari prediksi
     
-    if latest_price is None:
-        return jsonify({"error": "No price data available"}), 404
-    
+    # Membentuk output JSON
     result = {
-        "date": latest_price.date.strftime("%Y-%m-%d"),
-        "price_in_rp": latest_price.price_in_rp
+        "date": dates,
+        "price": price_values,
+        "prediction": prediction_values,
+        "predictionByDay": predictionByDay
     }
     
     return jsonify(result)
+
+# get all data 
+@app.route('/prices-data', methods=['GET'])
+def get_data_data():
+    prices = GoldPriceHistory.query.all()
+    results = [
+        {
+            "date": price.date,
+            "price": price.price_in_rp,
+        } for price in prices
+    ]
+    return jsonify(results)
+
+# opsional
+@app.route('/prediction', methods=['GET'])
+def get_prediction():
+    days = 12
+    if days is None or days <= 0:
+        return jsonify({"error": "Parameter 'days' harus berupa angka positif"}), 400
+
+    today = dt.today()
+    end_date = today + timedelta(days=days - 1)
+
+    # Query data berdasarkan rentang tanggal
+    prices = GoldPriceHistory.query.filter(GoldPriceHistory.date.between(today, end_date)).all()
+
+
+    results = [
+        {
+            "date": price.date.strftime('%Y-%m-%d'),
+            "price": price.price_in_rp,
+        } for price in prices
+    ]
+
+    return jsonify(results)
+
+
+def get_prediction_until(): 
+    with app.app_context():
+        data = 24
+
+        prices = GoldPriceHistory.query.order_by(GoldPriceHistory.date.asc()).all()
+
+        # Konversi data SQLAlchemy ke bentuk yang bisa digunakan oleh predict_until
+        prices_list = [{"date": p.date.strftime("%Y-%m-%d"), "price_in_rp": p.price_in_rp} for p in prices]
+
+        prediction_results = predict_until(n_days=data, prices=prices_list)
+
+        for date, value in prediction_results.items():
+            insert_gold_price(value, date)
+
+def delete_gold_prices_from_today():
+    """Delete gold price records from today onwards."""
+    with app.app_context():
+        try:
+            today = dt.today()
+            GoldPriceHistory.query.filter(GoldPriceHistory.date >= today).delete()
+            db.session.commit()
+            print(f"Gold prices from {today} onwards deleted successfully!")
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error deleting gold prices: {e}")
 
 
 if __name__ == '__main__':

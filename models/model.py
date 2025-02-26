@@ -45,7 +45,7 @@ def predict_until(n_days: int, prices):
     smoothed_forecast = gaussian_filter1d(forecasted_values.flatten(), sigma=2)
 
     # Mapping forecasted values to dates
-    start_date = datetime.date(2025, 2, 1)
+    start_date = datetime.date.today()
     forecast_dates = [start_date + datetime.timedelta(days=i) for i in range(0, n_days + 1)]
     forecast_dict = {date.strftime('%Y-%m-%d'): float(value) for date, value in zip(forecast_dates, forecasted_values.flatten())}
     
@@ -91,7 +91,7 @@ def predict(n_days: int, prices):
     if forecast_value is not None:
         forecast_value = transform.inverse_transform(np.array([[forecast_value]]))[0][0]
 
-    forecast_date = datetime.date(2025, 2, 1) + datetime.timedelta(days=n_days - 1)
+    forecast_date = datetime.date.today() + datetime.timedelta(days=n_days - 1)
     return {forecast_date.strftime('%Y-%m-%d'): float(forecast_value)}
 
 def get_latest_data():
