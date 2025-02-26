@@ -93,15 +93,3 @@ def predict(n_days: int, prices):
 
     forecast_date = datetime.date.today() + datetime.timedelta(days=n_days - 1)
     return {forecast_date.strftime('%Y-%m-%d'): float(forecast_value)}
-
-def get_latest_data():
-    path = "./database/Running Team_Dataset.csv"
-    df = pd.read_csv(path)
-    if 'Tanggal' not in df.columns or 'Harga Emas (IDR)' not in df.columns:
-        return {"error": "Dataset does not contain required columns"}
-    df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-    latest_entry = df.sort_values(by='Tanggal', ascending=False).iloc[0]
-    return {
-        "date": latest_entry['Tanggal'].strftime('%Y-%m-%d'),
-        "price": latest_entry['Harga Emas (IDR)']
-    }
