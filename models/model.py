@@ -4,10 +4,9 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import datetime
 from scipy.ndimage import gaussian_filter1d
-
-
+ 
 def predict_until(n_days: int, prices):
-    df = pd.DataFrame([{"price_in_rp": price.price_in_rp} for price in prices])
+    df = pd.DataFrame([{"price_in_rp": price['price_in_rp']} for price in prices])
     print(df.head())
     # Load model and transformer
     model = joblib.load("./models/Forcasting.pkl")
@@ -53,7 +52,7 @@ def predict_until(n_days: int, prices):
     return forecast_dict
 
 def predict(n_days: int, prices):
-    df = pd.DataFrame([{"price_in_rp": price.price_in_rp} for price in prices])
+    df = pd.DataFrame([{"price_in_rp": price['price_in_rp']} for price in prices])
     print(df.head())
     # Load model and transformer
     model = joblib.load("./models/Forcasting.pkl")
@@ -95,3 +94,14 @@ def predict(n_days: int, prices):
     forecast_date = datetime.date(2025, 2, 1) + datetime.timedelta(days=n_days - 1)
     return {forecast_date.strftime('%Y-%m-%d'): float(forecast_value)}
 
+def get_latest_data():
+    path = "./database/Running Team_Dataset.csv"
+    df = pd.read_csv(path)
+    if 'Tanggal' not in df.columns or 'Harga Emas (IDR)' not in df.columns:
+        return {"error": "Dataset does not contain required columns"}
+    df['Tanggal'] = pd.to_datetime(df['Tanggal'])
+    latest_entry = df.sort_values(by='Tanggal', ascending=False).iloc[0]
+    return {
+        "date": latest_entry['Tanggal'].strftime('%Y-%m-%d'),
+        "price": latest_entry['Harga Emas (IDR)']
+    }

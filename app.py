@@ -58,6 +58,18 @@ def get_articles():
     ]
     return jsonify(results)
 
+@app.route('/articles/<int:id>', methods=['GET'])
+def get_article_detail(id):
+    article = Article.query.get_or_404(id)
+    result = {
+        "id": article.id,
+        "title": article.title,
+        "description": article.description,
+        "image": article.image
+    }
+    return jsonify(result)
+
+
 @app.route('/predict-until', methods=['POST'])
 def get_prediction_until():
     data = request.json.get("day")
@@ -93,12 +105,9 @@ def get_newprice():
     if latest_price is None:
         return jsonify({"error": "No price data available"}), 404
     
-    predicted_price = predict(1, prices=[{"date": latest_price.date.strftime("%Y-%m-%d"), "price_in_rp": latest_price.price_in_rp}])
-    
     result = {
         "date": latest_price.date.strftime("%Y-%m-%d"),
-        "price_in_rp": latest_price.price_in_rp,
-        "predicted_price": predicted_price.get("predicted_price", None)
+        "price_in_rp": latest_price.price_in_rp
     }
     
     return jsonify(result)
