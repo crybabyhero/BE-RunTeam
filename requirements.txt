@@ -1,0 +1,12 @@
+Flask
+Flask-SQLAlchemy
+Flask-Cors
+numpy
+pandas
+scipy
+scikit-learn
+joblib
+requests
+datetime
+PyMySQL
+cryptography
